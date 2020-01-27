@@ -1,0 +1,127 @@
+## RNA-seq analysis with DESeq2, Hazem Abdelaal, 01-10-2020
+
+# load needed packages
+library(DESeq2)
+library(gplots)
+library(ggplot2)
+library(pheatmap)
+
+## row counts input and filtering low count genes
+
+# row counts input
+CountTable <- read.delim("~/Documents/DESeq-files/010910NADCuniquegenereads.txt", row.names=1, header=TRUE)
+dim(CountTable)
+>>> [1] 24596    24
+
+# filtering the genes with counts lower than 5
+keep <- rowSums(CountTable) > 5
+filteredCountTable <- CountTable[keep,]
+dim(filteredCountTable)
+>>> [1] 18533    24 (lower number of rows)
+
+# drawing bar plot for library Sizes with a line showing cut off
+librarySizes <- colSums(filteredCountTable)
+par(mar=c(7,5,5,5))
+barplot(librarySizes, las=2, main="library sizes",beside=TRUE, names=names(librarySizes))
+abline(h=20e6, lty=2)
+
+# creating Sample tables
+SampleTable <- data.frame(row.names=c("405-8wInf","415-8wInf","422-8wInf","426-8wInf","431-8wInf","460-8wInf","409-8wUninf","410-8wUninf","416-8wUninf","420-8wUninf","424-8wUninf","443-8wUninf","405-20wInf","415-20wInf","422-20wInf","426-20wInf","431-20wInf","460-20wInf","409-20wUninf","410-20wUninf","416-20wUninf","420-20wUninf","424-20wUninf","443-20wUninf"),condition=as.factor(c("8wInf","8wInf","8wInf","8wInf","8wInf","8wInf","8wUninf","8wUninf","8wUninf","8wUninf","8wUninf","8wUninf","20wInf","20wInf","20wInf","20wInf","20wInf","20wInf","20wUninf","20wUninf","20wUninf","20wUninf","20wUninf","20wUninf")))
+
+# construct the DESeqDataSet object
+ddsNADC2020 <- DESeqDataSetFromMatrix(countData=CountTable, colData=SampleTable, design=~condition)
+
+# Run the DESeq pipeline
+NADC2020_DESeq <- DESeq(ddsNADC2020)
+
+# creating a differential expression results / this can be repeated for all other created results.
+GeneralResult <- results(NADC2020_DESeq)
+head(GeneralResults)
+summary(GeneralResult)
+write.csv(GeneralResult, file="~/Documents/DESeq-files/GeneralResult.csv")
+EarlyInfResult <- results(NADC2020_DESeq, contrast =c("condition","8wInf","8wUninf"))
+head(EarlyInfResult)
+summary(EarlyInfResult)
+write.csv(EarlyInfResult, file="~/Documents/DESeq-files/EarlyInfResult.csv")
+LateInfResult <- results(NADC2020_DESeq, contrast =c("condition","20wInf","20wUninf"))
+head(LateInfResult)
+summary(LateInfResult)
+write.csv(LateInfResult, file="~/Documents/DESeq-files/LateInfResul.csv")
+AgeRelatedResult <- results(NADC2020_DESeq, contrast =c("condition","8wUninf","20wUninf"))
+head(AgeRelatedResult)
+summary(AgeRelatedResult)
+write.csv(AgeRelatedResult, file="~/Documents/DESeq-files/AgeRelatedResult.csv")
+
+# extracting normalized counts
+normalizedCounts <- t(t(counts(NADC2020_DESeq)) / sizeFactors(NADC2020_DESeq))
+head(normalizedCounts)
+write.csv(normalizedCounts, file="~/Documents/DESeq-files/All_uniq_gene_reads_normalized_NADC.csv")
+
+# Plot dispersions
+plotDispEsts(NADC2020_DESeq, main="Dispersion plot")
+
+# creat a MA-plot
+plotMA(EarlyInfResult, alpha = 0.05, main="8w.p.i", ylim=c(-4,4))
+plotMA(LateInfResult, alpha = 0.05, main="20w.p.i", ylim=c(-4,4))
+plotMA(AgeRelatedResult, alpha = 0.05, main="Age Related Differences", ylim=c(-4,4))
+
+## Examining plot of p-values
+hist(EarlyInfResult$padj, breaks=50, main="8w.p.i", xlab="Adjusted P-value",col="grey")
+hist(LateInfResult$padj, breaks=20, main="20w.p.i", xlab="Adjusted P-value",col="grey")
+hist(AgeRelatedResult$padj, breaks=20, main="Age Related Differences", xlab="Adjusted P-value",col="grey")
+
+# creating "Regularized log transformation" for clustering analysis / heatmaps, etc
+rld <- rlogTransformation(ddsNADC2020)
+head(rld)
+hist(assay(rld))
+
+# Plot Principal components analysis / PCA
+plotPCA(rld, intgroup=c("condition"), ntop=500, returnData=FALSE)
+
+# Plot Principal
+plotSparsity(NADC2020_DESeq)
+
+# creating heatmaps from subset of genes
+AgeRelatedDEsubgp <- c("ZEB1","C1H3orf70","KLF12","LPP","ACOX2","AKT3","FOXN3","ZBTB20","AUH","BCL2","ENSBTAG00000012357","FAM222B","CDK6","GPR52","MPP7","EBF1","ENSBTAG00000014448","CCDC173","EPHB3","ARL15","ENSBTAG00000034433","ENSBTAG00000048225","ENSBTAG00000027075","ENSBTAG00000046100","GPR171","ENSBTAG00000009824","ENSBTAG00000032432","ALOX15","RPS15","ENSBTAG00000047072","ENSBTAG00000048229","BEX2_2","ENSBTAG00000001538","GPR4","RASD1","ENSBTAG00000046066","ENSBTAG00000046819","GABRD","ENSBTAG00000039807","CCR3")
+heatmap.2(assay(rld)[ AgeRelatedDEsubgp,] ,density.info = "none",symm=F,Colv =T,trace="none", col = colorRampPalette(c("red", "black", "blue")))
+EarlyInfDEsubgp <- c("TMPRSS3","CXCL10","CYB5R2","ENSBTAG00000046161","TAC3","MT2A","ENSBTAG00000014795","CCL8","ENSBTAG00000047121","MINDY3","ENSBTAG00000023026","ENSBTAG00000005855","CALHM6","APOLD1","ENSBTAG00000025391","GNG11","P2RY6","PDE4C","C1R","PF4","RAMP3","TMEM126B","THAP9","MRPS36","PNMA1","MIS12","COQ7","PLGRKT","SH3BGRL","TLR10","TPRKB","TGFB2","CCR5","FRZB","ENSBTAG00000046584","RGS18","DAB2","SF1","ENSBTAG00000009824","ALDH1A1")
+heatmap.2(assay(rld)[EarlyInfDEsubgp,] ,density.info = "none",symm=F,Colv =T,trace="none", col = colorRampPalette(c("red","black","green")))
+
+# creating heatmaps from the most significant expressed genes
+GeneralResultOrdered <- GeneralResult[order(GeneralResult$pvalue),]
+write.csv (as.data.frame(GeneralResultOrdere),file="~/Documents/DESeq-files/GeneralResultOrdered_Deseq2.csv")
+GeneralResultSignGenes <- rownames(subset(GeneralResultOrdered, pvalue < 0.05))
+heatmap.2(assay(rld)[ GeneralResultSignGenes,] ,density.info = "none",symm=F,Colv =T,trace="none", col = colorRampPalette(c("red", "green")))
+EarlyInfResultOrdered <- EarlyInfResult[order(EarlyInfResult$pvalue),]
+write.csv (as.data.frame(EarlyInfResultOrdered),file="~/Documents/DESeq-files/EarlyInfResult_Deseq2.csv")
+EarlyInfResultSignGenes <- rownames(subset(EarlyInfResultOrdered, pvalue < 0.05, log2FoldChange >= 1.0))
+heatmap.2(assay(rld)[EarlyInfResultSignGenes,] ,density.info = "none",symm=F,Colv =T,trace="none", col = colorRampPalette(c("red", "blue")))
+LateInfResultOrdered <- LateInfResult[order(LateInfResult$pvalue),]
+write.csv (as.data.frame(LateInfResultOrdered),file="~/Documents/DESeq-files/LateInfResult_Deseq2.csv")
+LateInfResultSignGenes <- rownames(subset(LateInfResultOrdered, pvalue < 0.05))
+heatmap.2(assay(rld)[LateInfResultSignGenes,] ,density.info = "none",symm=F,Colv =T,trace="none", col = colorRampPalette(c("red", "yellow")))
+AgeRelatedResultOrdered <- AgeRelatedResult[order(AgeRelatedResult$pvalue),]
+write.csv (as.data.frame(AgeRelatedResultOrdered),file="~/Documents/DESeq-files/AgeRelatedResult_Deseq2.csv")
+AgeRelatedResultSignGenes <- rownames(subset(AgeRelatedResultOrdered, pvalue < 0.05))
+heatmap.2(assay(rld)[AgeRelatedResultSignGenes,] ,density.info = "none",symm=F,Colv =T,trace="none", col = colorRampPalette(c("red", "green")))
+
+# saving all the RData created at the environment
+save.image("~/Documents/DESeq-files/NADC-DE-2020-II.RData")
+
+## another way of studying multiple factors in the same group of samples is designing a model matrix
+design <- model.matrix(~Treat + Treat:Time, data=targets)
+design <- model.matrix(~Treat * Time, data=targets)
+
+# after inputing the CountTable, SampleTable is designed with 2 factors; condition and time.
+SampleTable <- data.frame(row.names=c("405-8wInf","415-8wInf","422-8wInf","426-8wInf","431-8wInf","460-8wInf","409-8wUninf","410-8wUninf","416-8wUninf","420-8wUninf","424-8wUninf","443-8wUninf","405-20wInf","415-20wInf","422-20wInf","426-20wInf","431-20wInf","460-20wInf","409-20wUninf","410-20wUninf","416-20wUninf","420-20wUninf","424-20wUninf","443-20wUninf"), condition=as.factor(c("I","I","I","I","I","I","U","U","U","U","U","U","I","I","I","I","I","I","U","U","U","U","U","U")), time=as.factor(c("8w","8w","8w","8w","8w","8w","8w","8w","8w","8w","8w","8w","20w","20w","20w","20w","20w","20w","20w","20w","20w","20w","20w","20w")))
+
+# designing the model matrix
+design <- model.matrix(~ condition:time + time:condition, data=SampleTable)
+colnames(design)
+unname(design)
+
+# running the rest of the pipeline
+dds1 <- DESeqDataSetFromMatrix(countData=CountTable, colData=SampleTable, design=~condition+condition:time)
+NADC2020_DESeq1 <- DESeq(dds1, test="LRT", reduced=~condition)
+results1 <- results(NADC2020_DESeq1)
+write.csv(results1, file="~/Desktop/meetingwithmark/results1.csv") 
