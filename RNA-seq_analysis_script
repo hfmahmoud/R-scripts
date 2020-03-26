@@ -63,7 +63,20 @@ plotDispEsts(NADC2020_DESeq, main="Dispersion plot")
 # creat a MA-plot
 plotMA(EarlyInfResult, alpha = 0.05, main="8w.p.i", ylim=c(-4,4))
 plotMA(LateInfResult, alpha = 0.05, main="20w.p.i", ylim=c(-4,4))
-plotMA(AgeRelatedResult, alpha = 0.05, main="Age Related Differences", ylim=c(-4,4))
+plotMA(AgeRelatedResult, alpha = 0.05, main="Age Related Differences", ylim=c(-4,4)
+
+## creat a Volcano-plot
+par(mar=c(5,5,5,5), cex=1.0, cex.main=1.4, cex.axis=1.4, cex.lab=1.4)
+topT <- as.data.frame(MboVsBCGresult)
+#Adjusted P values (FDR Q values)
+with(topT, plot(log2FoldChange, -log10(padj), pch=20, main="Volcano plot", cex=1.0, xlab=bquote(~Log[2]~fold~change), ylab=bquote(~-log[10]~Q~value)))
+with(subset(topT, padj<0.01 & abs(log2FoldChange)>2), points(log2FoldChange, -log10(padj), pch=20, col="red", cex=0.5))
+with(subset(topT, padj<0.01 & abs(log2FoldChange)>12), text(log2FoldChange, -log10(padj), labels=subset(rownames(topT), topT$padj<0.05 & abs(topT$log2FoldChange)>2), cex=0.8, pos=3))
+#Add lines for absolute FC>2 and P-value cut-off at FDR Q<0.05
+abline(v=0, col="black", lty=3, lwd=1.0)
+abline(v=-2, col="black", lty=4, lwd=2.0)
+abline(v=2, col="black", lty=4, lwd=2.0)
+abline(h=-log10(max(topT$pvalue[topT$padj<0.05], na.rm=TRUE)), col="black", lty=4, lwd=2.0)
 
 ## Examining plot of p-values
 hist(EarlyInfResult$padj, breaks=50, main="8w.p.i", xlab="Adjusted P-value",col="grey")
