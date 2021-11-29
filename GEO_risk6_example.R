@@ -56,6 +56,8 @@ tT <- topTable(fit2, adjust="fdr", sort.by="B", number = Inf)
 #tT = tT[which(tT$adj.P.Val < 0.05),]
 #tT = tT[which(abs(tT$logFC) >= 1),]
 tT <- subset(tT, select=c("ID","adj.P.Val","P.Value","t","B","logFC","Gene.symbol","Gene.title"))
+
+# Calculating RISK6 scores
 risk6_genes = c("Gbp2", "Fcgr1", "Serping1", "Tubgcp6", "Trmt2a", "Sdr39u1")
 
 tT_risk = tT[which(tT$Gene.symbol %in% risk6_genes),]
