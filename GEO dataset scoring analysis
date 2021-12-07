@@ -1,0 +1,72 @@
+#   Data plots for selected GEO samples
+library(GEOquery)
+
+# load series and platform data from GEO
+gset <- getGEO("GSE140943", GSEMatrix =TRUE, getGPL=FALSE)
+
+# check how many platforms used
+if (length(gset) > 1) idx <- grep("GPL6887", attr(gset, "names")) else idx <- 1
+gset <- gset[[idx]]
+
+si <- pData(gset) ## print/make the sample information
+ga <- fData(gset) ## print/make the gene annotation
+ex <- exprs(gset) ## print/make the expression data
+
+## source_name_ch1 and characteristics_ch1.1 seem to contain factors we might need for the analysis. 
+# pick just those columns
+library(dplyr)
+dplyr::select(si, title, geo_accession, source_name_ch1,characteristics_ch1, characteristics_ch1.1) -> si2
+## (Optional) rename to more convenient column names
+si2 <- rename(si2, sample=source_name_ch1, dpi=characteristics_ch1, agent=characteristics_ch1.1)
+
+## Check the normalisation and scales used
+pData(gset)$data_processing[1]
+
+## have a look on the expression value
+summary(exprs(gset))
+# or
+dim(exprs(gset))
+
+# log2 transform (in case the values aren't transformed)
+qx <- as.numeric(quantile(ex, c(0., 0.25, 0.5, 0.75, 0.99, 1.0), na.rm=T))
+LogC <- (qx[5] > 100) ||
+  (qx[6]-qx[1] > 50 && qx[2] > 0)
+if (LogC) { ex[which(ex <= 0)] <- NaN
+ex <- log2(ex) }
+
+## (optional) PCA analysis
+library(ggplot2)
+library(ggrepel)
+pca <- prcomp(t(ex))
+## Join the PCs to the sample information
+cbind(si2, pca$x) %>% 
+  ggplot(aes(x = PC1, y=PC2, col=dpi,label=paste("DPI", dpi))) + geom_point() + geom_text_repel()
+
+## Exporting the data
+library(readr)
+GSE140943_output <- cbind(fData(gset),exprs(gset))
+write.csv(GSE140943_output, path="GSE140943_output.csv")
+
+## scoreing
+
+#risk6_genes = c("Gbp2", "Fcgr1", "Serping1", "Tubgcp6", "Trmt2a", "Sdr39u1")
+risk6_genes = c("ILMN_3122961", "ILMN_1229523", "ILMN_2913166", "ILMN_2425185", "ILMN_3143116", "ILMN_2470889")
+tT_risk6 = ex[which(rownames(ex) %in% risk6_genes),]
+rownames(tT_risk6) <- c("Gbp2", "Fcgr1", "Serping1", "Tubgcp6", "Trmt2a", "Sdr39u1")
+colnames(tT_risk6) <- c("uninfected-1",	"uninfected-2",	"uninfected-3",	"14-1",	"14-2",	"14-3",	"14-4",	"14-5",	"21-1",	"21-2",	"21-3",	"21-4",	"21-5",	"28-1",	"28-2",	"28-3",	"28-4",	"28-5",	"56-1",	"56-2",	"56-3",	"56-4",	"56-5",	"138-1",	"138-2",	"138-3")
+write.csv(tT_risk6, file="~/GSE140943_risk6.csv")
+
+#diag3_genes = c("Gbp5", "Dusp3", "Klf2")
+diag3_genes = c("ILMN_1218150", "ILMN_2918927", "ILMN_2604029")
+tT_diag3 = ex[which(rownames(ex) %in% diag3_genes),]
+rownames(tT_diag3) <- c("Gbp5", "Dusp3", "Klf2")
+colnames(tT_diag3) <- c("uninfected-1",	"uninfected-2",	"uninfected-3",	"14-1",	"14-2",	"14-3",	"14-4",	"14-5",	"21-1",	"21-2",	"21-3",	"21-4",	"21-5",	"28-1",	"28-2",	"28-3",	"28-4",	"28-5",	"56-1",	"56-2",	"56-3",	"56-4",	"56-5",	"138-1",	"138-2",	"138-3")
+write.csv(tT_diag3, file="~/GEO_analysis/GSE140943/GSE140943_diag3.csv")
+
+#batf2_genes = c("Batf2")
+batf2_genes = c("ILMN_217075")
+tT_batf2 = ex[which(rownames(ex) %in% batf2_genes),]
+rownames(tT_batf2) <- c("batf2")
+colnames(tT_batf2) <- c("uninfected-1",	"uninfected-2",	"uninfected-3",	"14-1",	"14-2",	"14-3",	"14-4",	"14-5",	"21-1",	"21-2",	"21-3",	"21-4",	"21-5",	"28-1",	"28-2",	"28-3",	"28-4",	"28-5",	"56-1",	"56-2",	"56-3",	"56-4",	"56-5",	"138-1",	"138-2",	"138-3")
+
+
