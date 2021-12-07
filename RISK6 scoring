@@ -1,0 +1,189 @@
+risk6 <- function(rdat)
+        {# Get primers in subsets and weights
+        subsets <- read.table("~/risk6/RISK6Gene_Subsets.txt", colClasses = character(), stringsAsFactors = F, sep = "\t");
+        # Get primers in scorce tables
+        scoreTables <- list();
+        for (subset in 1:nrow(subsets))
+        {
+                scoreTables[[subset]] <- read.table(paste("~/risk6/RISK6Gene_ScoreTable/RISK6Gene_ScoreTable", subset, ".txt", sep = ""), colClasses = numeric(), sep = "\t");
+        }
+        subsetPrimers <- unique(c(subsets[,1], subsets[,2]));
+        # Get predictions for each sample
+        predictions <- NULL
+        uniqueSamples <- unique(colnames(rdat))
+        samples <- colnames(rdat)
+        primers <- rownames(rdat)
+        pairwiseScores <- matrix(0, nrow = nrow(subsets), ncol = length(uniqueSamples))
+        for (sample in uniqueSamples)
+        {
+                sampleIndex <- match(sample, uniqueSamples)
+                sampleReplicates <- which(samples == sample)
+                scoreSum <- 0
+                scoreCount <- 0
+                for (subset in 1:nrow(subsets)) {
+                        primer1 <- subsets[subset,1]
+                        primer2 <- subsets[subset,2]
+                        if (primer1 %in% primers & primer2 %in% primers){
+                                ratio <- 0
+                                ratioCount <- 0
+                                for (rep in sampleReplicates)
+                                {
+                                        pIndices1 <- which(primers == primer1 & !is.na(rdat[,rep]));
+                                        pIndices2 <- which(primers == primer2 & !is.na(rdat[,rep]));
+                                        
+                                        for (p1 in pIndices1)
+                                        {
+                                                for (p2 in pIndices2)
+                                                {
+                                                        if (!is.na(rdat[p1,rep]) & !is.na(rdat[p2,rep])){
+                                                                ratio <- ratio + rdat[p2,rep] - rdat[p1,rep]
+                                                                ratioCount <- ratioCount + 1
+                                                        }
+                                                }; rm(p2)	
+                                        }; rm(p1)
+                                }
+                                if (ratioCount > 0)
+                                {
+                                        ratio <- ratio / ratioCount
+                                        scoreFound <- FALSE
+                                        ratioTested <- 1
+                                        while (!scoreFound & ratioTested <= nrow(scoreTables[[subset]]))
+                                        {
+                                                if (ratio < scoreTables[[subset]][ratioTested,1])
+                                                {
+                                                        scoreSum <- scoreSum + scoreTables[[subset]][ratioTested,2]
+                                                        scoreCount <- scoreCount + 1
+                                                        scoreFound <- TRUE
+                                                        pairwiseScores[subset,sampleIndex] <- scoreTables[[subset]][ratioTested,2]
+                                                }
+                                                ratioTested <- ratioTested + 1
+                                        }
+                                        if (!scoreFound)
+                                        {
+                                                scoreSum <- scoreSum + 1
+                                                scoreCount <- scoreCount + 1
+                                                pairwiseScores[subset,sampleIndex] <- 1
+                                        }
+                                }
+                        }
+                }; rm(subset);
+                predictions <- rbind(predictions, c(sample, scoreSum/scoreCount));
+                predictions <- as.data.frame(predictions, stringsAsFactors = F)
+        }; rm(sampleIndex)
+        colnames(predictions) <- c("Sample Name", "Risk6 Score")
+        return(predictions)
+}
+
+
+write.csv(testData)
+
+## inporting data
+# loading the test data comes with the script
+load("risk6/testData.RData")
+write.csv(testData, file = "risk6/example_input.csv")
+# loading the test data from .csv file
+testdata = read.csv("risk6/example_input.csv", header = T)
+rownames(testdata) = testdata[,1]
+testdata = testdata[,-1]
+colnames(testdata) = sub("[.].*","",colnames(testdata))
+
+## runing the script
+risk6 <- function(testdata)
+{# Get primers in subsets and weights
+        subsets <- read.table("~/risk6/RISK6Gene_Subsets.txt", colClasses = character(), stringsAsFactors = F, sep = "\t");
+        # Get primers in scorce tables
+        scoreTables <- list();
+        for (subset in 1:nrow(subsets))
+        {
+                scoreTables[[subset]] <- read.table(paste("~/risk6/RISK6Gene_ScoreTable/RISK6Gene_ScoreTable", subset, ".txt", sep = ""), colClasses = numeric(), sep = "\t");
+        }
+        subsetPrimers <- unique(c(subsets[,1], subsets[,2]));
+        # Get predictions for each sample
+        predictions <- NULL
+        uniqueSamples <- unique(colnames(rdat))
+        samples <- colnames(rdat)
+        primers <- rownames(rdat)
+        pairwiseScores <- matrix(0, nrow = nrow(subsets), ncol = length(uniqueSamples))
+        for (sample in uniqueSamples)
+        {
+                sampleIndex <- match(sample, uniqueSamples)
+                sampleReplicates <- which(samples == sample)
+                scoreSum <- 0
+                scoreCount <- 0
+                for (subset in 1:nrow(subsets)) {
+                        primer1 <- subsets[subset,1]
+                        primer2 <- subsets[subset,2]
+                        if (primer1 %in% primers & primer2 %in% primers){
+                                ratio <- 0
+                                ratioCount <- 0
+                                for (rep in sampleReplicates)
+                                {
+                                        pIndices1 <- which(primers == primer1 & !is.na(rdat[,rep]));
+                                        pIndices2 <- which(primers == primer2 & !is.na(rdat[,rep]));
+                                        
+                                        for (p1 in pIndices1)
+                                        {
+                                                for (p2 in pIndices2)
+                                                {
+                                                        if (!is.na(rdat[p1,rep]) & !is.na(rdat[p2,rep])){
+                                                                ratio <- ratio + rdat[p2,rep] - rdat[p1,rep]
+                                                                ratioCount <- ratioCount + 1
+                                                        }
+                                                }; rm(p2)	
+                                        }; rm(p1)
+                                }
+                                if (ratioCount > 0)
+                                {
+                                        ratio <- ratio / ratioCount
+                                        scoreFound <- FALSE
+                                        ratioTested <- 1
+                                        while (!scoreFound & ratioTested <= nrow(scoreTables[[subset]]))
+                                        {
+                                                if (ratio < scoreTables[[subset]][ratioTested,1])
+                                                {
+                                                        scoreSum <- scoreSum + scoreTables[[subset]][ratioTested,2]
+                                                        scoreCount <- scoreCount + 1
+                                                        scoreFound <- TRUE
+                                                        pairwiseScores[subset,sampleIndex] <- scoreTables[[subset]][ratioTested,2]
+                                                }
+                                                ratioTested <- ratioTested + 1
+                                        }
+                                        if (!scoreFound)
+                                        {
+                                                scoreSum <- scoreSum + 1
+                                                scoreCount <- scoreCount + 1
+                                                pairwiseScores[subset,sampleIndex] <- 1
+                                        }
+                                }
+                        }
+                }; rm(subset);
+                predictions <- rbind(predictions, c(sample, scoreSum/scoreCount));
+                predictions <- as.data.frame(predictions, stringsAsFactors = F)
+        }; rm(sampleIndex)
+        colnames(predictions) <- c("Sample Name", "Risk6 Score")
+        return(predictions)
+}
+risk_out = risk6(testdata)
+risk_out$`Risk6 Score` = as.numeric(risk_out$`Risk6 Score`)
+barplot(`Risk6 Score` ~ `Sample Name`, data = risk_out)
+
+# Boxplot basic
+library(magrittr)
+
+install.packages("viridis")
+library(viridis)
+install.packages("hrbrthemes")
+library(hrbrthemes)
+install.packages("ggplot2") # Install & load ggplot2
+library("ggplot2")
+
+data <- as.data.frame(risk_out)
+ggplot(data, aes(x=Sample Name, y=Risk6 Score, fill=sample Name)) +
+        geom_boxplot() +
+        scale_fill_viridis(discrete = TRUE, alpha=0.6, option="A") +
+        theme(
+                legend.position="none",
+                plot.title = element_text(size=11)
+        ) +
+        ggtitle("Bexample Risk6 scores") +
+        xlab("")
