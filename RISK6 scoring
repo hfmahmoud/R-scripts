@@ -74,9 +74,6 @@ risk6 <- function(rdat)
         return(predictions)
 }
 
-
-write.csv(testData)
-
 ## inporting data
 # loading the test data comes with the script
 load("risk6/testData.RData")
@@ -169,7 +166,6 @@ barplot(`Risk6 Score` ~ `Sample Name`, data = risk_out)
 
 # Boxplot basic
 library(magrittr)
-
 install.packages("viridis")
 library(viridis)
 install.packages("hrbrthemes")
