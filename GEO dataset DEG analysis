@@ -1,0 +1,60 @@
+# Data plots for selected GEO samples
+library(GEOquery)
+
+# load series and platform data from GEO
+gset <- getGEO("GSE140943", GSEMatrix =TRUE, getGPL=FALSE)
+
+# check how many platforms used
+if (length(gset) > 1) idx <- grep("GPL6887", attr(gset, "names")) else idx <- 1
+gset <- gset[[idx]]
+
+si <- pData(gset) ## print/make the sample information
+ga <- fData(gset) ## print/make the gene annotation
+ex <- exprs(gset) ## print/make the expression data
+
+## source_name_ch1 and characteristics_ch1.1 seem to contain factors we might need for the analysis. 
+# pick just those columns
+library(dplyr)
+dplyr::select(si, title, geo_accession, source_name_ch1,characteristics_ch1, characteristics_ch1.1) -> si2
+## Optionally, rename to more convenient column names
+si2 <- rename(si2, sample=source_name_ch1, dpi=characteristics_ch1, agent=characteristics_ch1.1)
+
+## Check the normalisation and scales used
+pData(gset)$data_processing[1]
+
+## have a look on the expression value
+summary(exprs(gset))
+# or
+dim(exprs(gset))
+
+# log2 transform
+qx <- as.numeric(quantile(ex, c(0., 0.25, 0.5, 0.75, 0.99, 1.0), na.rm=T))
+LogC <- (qx[5] > 100) ||
+  (qx[6]-qx[1] > 50 && qx[2] > 0)
+if (LogC) { ex[which(ex <= 0)] <- NaN
+ex <- log2(ex) }
+
+## PCA analysis
+library(ggplot2)
+library(ggrepel)
+pca <- prcomp(t(ex))
+## Join the PCs to the sample information
+cbind(si2, pca$x) -> pca2
+ggplot(pca2, aes(x = PC1, y=PC2, col=dpi,label=paste("dpi", dpi))) + geom_point() + geom_text_repel()
+
+
+# drawing bar plot for library Sizes with a line showing cut off
+librarySizes <- colSums(ex)
+par(mar=c(7,5,5,5))
+barplot(librarySizes, las=2, main="library sizes",beside=TRUE, names=names(librarySizes))
+abline(h=20e6, lty=2)
+
+# creating Sample tables
+SampleTable <- data.frame(row.names=c("uninfected-1",	"uninfected-2",	"uninfected-3",	"14-1",	"14-2",	"14-3",	"14-4",	"14-5",	"21-1",	"21-2",	"21-3",	"21-4",	"21-5",	"28-1",	"28-2",	"28-3",	"28-4",	"28-5",	"56-1",	"56-2",	"56-3",	"56-4",	"56-5",	"138-1",	"138-2",	"138-3"),condition=as.factor(c("uninfected",	"uninfected",	"uninfected",	"14",	"14",	"14",	"14",	"14",	"21",	"21",	"21",	"21",	"21",	"28",	"28",	"28",	"28",	"28",	"56",	"56",	"56",	"56",	"56",	"138",	"138",	"138")))
+
+# construct the DESeqDataSet object
+dds_GSE140943 <- DESeqDataSetFromMatrix(countData=ex, colData=SampleTable, design=~condition)
+
+# Run the DESeq pipeline
+library(DESeq2)
+GSE140943_DESeq <- DESeq(dds_GSE140943)
