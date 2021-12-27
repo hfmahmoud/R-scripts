@@ -1,124 +1,139 @@
 
-## downloading the "GSE......" dataset that you want to Global Environment.
-install.packages("BiocManager")
-BiocManager::install("GEOquery")
+# Data plots for selected GEO samples
 library(GEOquery)
 
-gse <- getGEO("GSE140943",GSEMatrix =TRUE, AnnotGPL=TRUE)
+# load series and platform data from GEO
+gset <- getGEO("GSE140943", GSEMatrix =TRUE, getGPL=FALSE)
 
-## check how many platforms used
-length(gse)
+# check how many platforms used
+if (length(gset) > 1) idx <- grep("GPL6887", attr(gset, "names")) else idx <- 1
+gset <- gset[[idx]]
 
-## Some datasets on GEO may be derived from different microarray platforms. Therefore the object gse is a list of different datasets. You can find out how many were used by checking the length of the gse object. Usually there will only be one platform and the dataset we want to analyse will be the first object in the list (gse[[1]]).
-gse <- gse[[1]]
-gse
+si <- pData(gset) ## print/make the sample information
+ga <- fData(gset) ## print/make the gene annotation
+ex <- exprs(gset) ## print/make the expression data
 
-if (length(gse) > 1) idx <- grep("GPL6887", attr(gset, "names")) else idx <- 1
-gset <- gse[[idx]]
-
-# make proper column names to match toptable 
-fvarLabels(gset) <- make.names(fvarLabels(gset))
-
-sample_information <- pData(gset) ## print/make the sample information
-gene_annotation <- fData(gset) ## print/make the gene annotation
-expression_data <- exprs(gset) ## print/make the expression data
+## source_name_ch1 and characteristics_ch1.1 seem to contain factors we might need for the analysis. 
+# pick just those columns
+library(dplyr)
+dplyr::select(si, title, geo_accession, source_name_ch1,characteristics_ch1, characteristics_ch1.1) -> si2
+## Optionally, rename to more convenient column names
+si2 <- rename(si2, sample=source_name_ch1, dpi=characteristics_ch1, agent=characteristics_ch1.1)
 
 ## Check the normalisation and scales used
 pData(gset)$data_processing[1]
-
-# For visualization and statistical analysis, we will inspect the data to 
-# discover what scale the data are presented in. The methods we will use assume 
-# the data are on a log2 scale; typically in the range of 0 to 16.
 
 ## have a look on the expression value
 summary(exprs(gset))
 # or
 dim(exprs(gset))
 
-# From this output we can see if the values go beyond 16, 
-# so we need to perform a log2 transformation.
-exprs(gset) <- log2(exprs(gset))
+# log2 transform
+qx <- as.numeric(quantile(ex, c(0., 0.25, 0.5, 0.75, 0.99, 1.0), na.rm=T))
+LogC <- (qx[5] > 100) ||
+  (qx[6]-qx[1] > 50 && qx[2] > 0)
+if (LogC) { ex[which(ex <= 0)] <- NaN
+ex <- log2(ex) }
 
-# check again the summary
-summary(exprs(gset))
-
-## A boxplot can also be generated to see if the data have been normalized. If so, the distributions of each sample should be highly similar.
-boxplot(exprs(gset),outline=FALSE)
-
-## Sample clustering
-library(pheatmap)
-corMatrix <- cor(exprs(gse),use="c") ## argument use="c" stops an error if there are any missing data points
-pheatmap(corMatrix)
-
-#rownames(sample_information) <- colnames(corMatrix)
-#pheatmap(corMatrix, annotation_col=sample_information)  
-
-## Inspect the clinical variables
-## Print the row names of the sample information and check it matches the correlation matrix
-rownames(pData(gset))
-
-library(dplyr)
-sample_information <- select(sample_information, source_name_ch1,characteristics_ch1.1)
-## Optionally, rename to more convenient column names
-sample_information <- rename(sample_information,sample = source_name_ch1, agent=characteristics_ch1.1)
-sample_information
-
-risk6_genes = c("Gbp2", "Fcgr1", "Serping1", "Tubgcp6", "Trmt2a", "Sdr39u1")
-
-tT_risk6 = gset[which(gset$Gene.symbol %in% risk6_genes),]
-summary(tT_risk6)
-
-tT_final = list()
-for (i in risk6_genes){
-  x = tT_risk6[which(tT_risk6$Gene.symbol == i),]
-  if (nrow(x) > 1){
-    x = x[which.min(x$adj.P.Val),]
-    tT_final[[i]] = x
-  }
-  else{
-    tT_final[[i]] = x
-  }
-}
-tT_final = dplyr::bind_rows(tT_final)
-
-risk_genes_1 = tT_final$logFC[which(tT_final$Gene.symbol %in% c("Gbp2", "Fcgr1", "Serping1"))]
-risk_genes_2 = tT_final$logFC[which(tT_final$Gene.symbol %in% c("Tubgcp6", "Trmt2a", "Sdr39u1"))]
-risk6_geo_score = exp(mean(risk_genes_1)) - exp(mean(risk_genes_2))
-
-## PCA
+## PCA analysis
 library(ggplot2)
 library(ggrepel)
-pca <- prcomp(t(exprs(gse)), scale. = T)
-sample_information_PCA <- cbind(sample_information, pca$x)
-ggplot(data=sample_information_PCA, aes(x = PC1, y=PC2, col=characteristics_ch1)) + geom_point()
-
-## another way for PCA
-install.packages("ggfortify")
-library(ggfortify)
-autoplot(pca)
-View(pca)
-autoplot(pca, data = sample_information_PCA, colour = "characteristics_ch1")
+pca <- prcomp(t(ex))
+## Join the PCs to the sample information
+cbind(si2, pca$x) -> pca2
+ggplot(pca2, aes(x = PC1, y=PC2, col=dpi,label=paste("dpi", dpi))) + geom_point() + geom_text_repel()
 
 ## Exporting the data
 library(readr)
-full_output <- cbind(fData(gse),exprs(gse))
-write_csv(full_output, path="gse_full_output.csv")
+GSE140943_output <- cbind(fData(gset),exprs(gset))
+write.csv(GSE140943_output, path="GSE140943_output.csv")
 
-features <- fData(gse)
-View(features)
-### Look at the features data frame and decide the names of the columns you want to keep
-features_updated <- select(features,ID,Species,Transcript,ILMN_Gene,RefSeq_ID,Accession,Symbol,Entrez_Gene_ID,Chromosome,Cytoband)
-full_output_updated <- cbind(features_updated,exprs(gse))
-write_csv(full_output_updated, path="gse_full_output_updated.csv")
+## scoreing
+#risk6_genes = c("Gbp2", "Fcgr1", "Serping1", "Tubgcp6", "Trmt2a", "Sdr39u1")
+risk6_genes = c("ILMN_3122961", "ILMN_1229523", "ILMN_2913166", "ILMN_2425185", "ILMN_3143116", "ILMN_2470889")
+tT_risk6 = ex[which(rownames(ex) %in% risk6_genes),]
+rownames(tT_risk6) <- c("Gbp2", "Fcgr1", "Serping1", "Tubgcp6", "Trmt2a", "Sdr39u1")
+colnames(tT_risk6) <- c("uninfected-1",	"uninfected-2",	"uninfected-3",	"14-1",	"14-2",	"14-3",	"14-4",	"14-5",	"21-1",	"21-2",	"21-3",	"21-4",	"21-5",	"28-1",	"28-2",	"28-3",	"28-4",	"28-5",	"56-1",	"56-2",	"56-3",	"56-4",	"56-5",	"138-1",	"138-2",	"138-3")
 
-## Differential Expression
-library(DESeq2)
-# creating Sample tables
-SampleTable <- data.frame(row.names=c("GSM4190920","GSM4190921","GSM4190922","GSM4190923","GSM4190924","GSM4190925","GSM4190926","GSM4190927","GSM4190928","GSM4190929","GSM4190930","GSM4190931","GSM4190932","GSM4190933","GSM4190934","GSM4190935","GSM4190936","GSM4190937","GSM4190938","GSM4190939","GSM4190940","GSM4190941","GSM4190942","GSM4190943","GSM4190944","GSM4190945"),condition=as.factor(c("uninfected","uninfected","uninfected","14d","14d","14d","14d","14d","21d","21d","21d","21d","21d","28d","28d","28d","28d","28d","56d","56d","56d","56d","56d","138d","138d","138d")))
-SampleTable
-# construct the DESeqDataSet object
-ddsGSE140943 <- DESeqDataSetFromMatrix(countData=expression_data, colData=SampleTable, design=~condition)
-# Run the DESeq pipeline
-GSE140943_DESeq <- DESeq(ddsGSE140943)
+GSE140943_RISK6 <- list()
+for (i in c(1:ncol(tT_risk6))){
+  tT_risk6[,i] -> values
+  as.numeric(values[which(names(values) %in% c("Gbp2", "Fcgr1", "Serping1"))]) -> gene1_3
+  as.numeric(values[which(names(values) %in% c("Tubgcp6", "Trmt2a", "Sdr39u1"))]) -> gene4_6
+  RISK6geoscore = exp(mean(log(gene1_3))) - exp(mean(log(gene4_6)))
+  GSE140943_RISK6[[i]] = data.frame(sample_name = colnames(tT_risk6)[i], risk6_score = RISK6geoscore)
+}
+
+GSE140943_RISK6 = dplyr::bind_rows(GSE140943_RISK6)
+GSE140943_RISK6$group = sub("-.*", "", GSE140943_RISK6$sample_name)
+
+library(ggplot2)
+library(viridis)
+GSE140943_RISK6 %>%
+  ggplot(aes(x=group, y=risk6_score, fill=group)) +
+  geom_boxplot() +
+  scale_fill_viridis(discrete = TRUE, alpha=0.6) +
+  geom_jitter(color="black", size=0.9, alpha=0.9) +
+  theme(legend.position="none", plot.title = element_text(size=17)) +
+  ggtitle("GSE140943 RISK6 scores") +
+  xlab("") +
+  xlab("")
 
 
+write.csv(tT_risk6, file="~/GSE140943_risk6.csv")
+
+#diag3_genes = c("Gbp5", "Dusp3", "Klf2")
+diag3_genes = c("ILMN_1218150", "ILMN_2918927", "ILMN_2604029")
+tT_diag3 = ex[which(rownames(ex) %in% diag3_genes),]
+rownames(tT_diag3) <- c("Gbp5", "Dusp3", "Klf2")
+colnames(tT_diag3) <- c("uninfected-1",	"uninfected-2",	"uninfected-3",	"14-1",	"14-2",	"14-3",	"14-4",	"14-5",	"21-1",	"21-2",	"21-3",	"21-4",	"21-5",	"28-1",	"28-2",	"28-3",	"28-4",	"28-5",	"56-1",	"56-2",	"56-3",	"56-4",	"56-5",	"138-1",	"138-2",	"138-3")
+write.csv(tT_diag3, file="o:\\GSE140943_diag3.csv")
+
+GSE140943_DIAG3 <- list()
+for (i in c(1:ncol(tT_diag3))){
+  tT_diag3[,i] -> values
+  as.numeric(values[which(names(values) %in% c("Gbp5", "Dusp3"))]) -> gene1_2
+  as.numeric(values[which(names(values) %in% c("Klf2"))]) -> gene3
+  DIAG3geoscore = sum(gene1_3) / (2-(gene3))
+  GSE140943_RISK6[[i]] = data.frame(sample_name = colnames(tT_risk6)[i], risk6_score = RISK6geoscore)
+}
+
+GSE140943_RISK6 = dplyr::bind_rows(GSE140943_RISK6)
+GSE140943_RISK6$group = sub("-.*", "", GSE140943_RISK6$sample_name)
+
+library(ggplot2)
+library(viridis)
+GSE140943_RISK6 %>%
+  ggplot(aes(x=group, y=risk6_score, fill=group)) +
+  geom_boxplot() +
+  scale_fill_viridis(discrete = TRUE, alpha=0.6) +
+  geom_jitter(color="black", size=0.9, alpha=0.9) +
+  theme(legend.position="none", plot.title = element_text(size=17)) +
+  ggtitle("GSE140943 RISK6 scores") +
+  xlab("") +
+  xlab("")
+
+#batf2_genes = c("batf2")
+batf2_genes = c("Batf2")
+batf2_genes = c("ILMN_217075")
+tT_batf2 = ex[which(rownames(ex) %in% batf2_genes),]
+rownames(tT_batf2) <- c("batf2")
+colnames(tT_batf2) <- c("uninfected-1",	"uninfected-2",	"uninfected-3",	"14-1",	"14-2",	"14-3",	"14-4",	"14-5",	"21-1",	"21-2",	"21-3",	"21-4",	"21-5",	"28-1",	"28-2",	"28-3",	"28-4",	"28-5",	"56-1",	"56-2",	"56-3",	"56-4",	"56-5",	"138-1",	"138-2",	"138-3")
+
+## Manual Data Annotation
+library(AnnotationDbi)
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+BiocManager::install("BiocInstaller")
+library(BiocInstaller)
+
+
+library(limma)
+design <- model.matrix(~0+si2$dpi)
+colnames(design) <- c("138dpi","14dpi","21dpi", "28dpi", "56dpi", "uninf")
+fit <- lmFit(exprs(gset), design)  # fit linear model
+head(fit$coefficients)
+# set up contrasts of interest and recalculate model coefficients
+cts <- paste(groups[1], groups[2], sep="-")
+cont.matrix <- makeContrasts(contrasts=cts, levels=design)
+fit2 <- contrasts.fit(fit, cont.matrix)
