@@ -1,0 +1,133 @@
+install.packages("rentrez")
+
+library(rentrez)
+
+# List of accession numbers
+accession_numbers <- c("CP007803.1", "CP011510.1", "CP069062.1", "CP069077.1", 
+                       "CP069078.1", "CP069076.1", "CP069075.1", "CP069073.1",)
+
+
+# creating accession number tables
+Mtb_genomes <- read.delim("~/WGS/phylogeny/Mtb_genomes.tab",  header=TRUE, check.names = F)
+
+# List of accession numbers
+accession_numbers <- Mtb_genomes$`Accession #`
+
+# # Function to fetch and write genomes
+fetch_and_write_genome <- function(accession_number) {
+  file_name <- paste0(accession_number, ".gb")
+  message("Fetching ", accession_number)
+  gb_data <- tryCatch({
+    entrez_fetch(db="nucleotide", id=accession_number, rettype="gb", retmode="text")
+  }, error = function(e) {
+    message("Failed to fetch ", accession_number, ": ", e$message)
+    return(NULL)
+  })
+  
+  if (!is.null(gb_data) && nchar(gb_data) > 0) {
+    writeLines(gb_data, con=file_name)
+    message("Written ", file_name)
+    return(gb_data)
+  } else {
+    message("No data to write for ", accession_number)
+    return(NULL)
+  }
+}
+
+# Download each genome and capture the results
+downloaded_genomes <- lapply(accession_numbers, fetch_and_write_genome)
+
+# Check for NULLs in the results to identify which accession numbers failed
+null_indices <- which(sapply(downloaded_genomes, is.null))
+if (length(null_indices) > 0) {
+  message("The following indices returned NULL: ", paste(null_indices, collapse = ", "))
+  message("Corresponding accession numbers that may have failed: ", paste(accession_numbers[null_indices], collapse = ", "))
+} else {
+  message("All genomes fetched successfully.")
+}
+
+# Define the destination folder
+destination_folder <- "~/WGS/phylogeny/genomes/"
+
+# Check if the output folder exists, create it if it doesn't
+if (!dir.exists(destination_folder)) {
+  dir.create(destination_folder, recursive = TRUE)
+}
+
+# ... Rest of your code (fetching genomes, etc.) ...
+
+# Loop through each accession number and move the file
+for (acc_num in accession_numbers) {
+  file_name <- paste0(acc_num, ".gb")
+  file_path <- file.path(getwd(), file_name) # Current path of the file
+  destination_path <- file.path(destination_folder, file_name) # New path
+  
+  if (file.exists(file_path)) {
+    file.rename(file_path, destination_path) # Move the file
+  }
+}
+
+
+---------------------------------------------------------------------------------------
+  
+# for fasta files
+  
+library(rentrez)
+
+# Read the table of accession numbers
+Mtb_genomes <- read.delim("~/WGS/phylogeny/Mtb_genomes.tab",  header=TRUE, check.names = FALSE)
+
+# List of accession numbers
+accession_numbers <- Mtb_genomes$`Accession #`
+
+# Function to fetch and write genomes in FASTA format
+fetch_and_write_genome_fasta <- function(accession_number) {
+  file_name <- paste0(accession_number, ".fasta")
+  message("Fetching ", accession_number)
+  fasta_data <- tryCatch({
+    entrez_fetch(db="nucleotide", id=accession_number, rettype="fasta", retmode="text")
+  }, error = function(e) {
+    message("Failed to fetch ", accession_number, ": ", e$message)
+    return(NULL)
+  })
+  
+  if (!is.null(fasta_data) && nchar(fasta_data) > 0) {
+    writeLines(fasta_data, con=file_name)
+    message("Written ", file_name)
+    return(fasta_data)
+  } else {
+    message("No data to write for ", accession_number)
+    return(NULL)
+  }
+}
+
+# Download each genome in FASTA format and capture the results
+downloaded_fasta_genomes <- lapply(accession_numbers, fetch_and_write_genome_fasta)
+
+# Check for NULLs in the results to identify which accession numbers failed
+null_indices_fasta <- which(sapply(downloaded_fasta_genomes, is.null))
+if (length(null_indices_fasta) > 0) {
+  message("The following indices returned NULL for FASTA: ", paste(null_indices_fasta, collapse = ", "))
+  message("Corresponding accession numbers that may have failed for FASTA: ", paste(accession_numbers[null_indices_fasta], collapse = ", "))
+} else {
+  message("All FASTA genomes fetched successfully.")
+}
+
+# Define the destination folder for FASTA files
+destination_folder_fasta <- "~/WGS/phylogeny/fasta_genomes/"
+
+# Check if the output folder exists, create it if it doesn't
+if (!dir.exists(destination_folder_fasta)) {
+  dir.create(destination_folder_fasta, recursive = TRUE)
+}
+
+# Loop through each accession number and move the FASTA file
+for (acc_num in accession_numbers) {
+  file_name <- paste0(acc_num, ".fasta")
+  file_path <- file.path(getwd(), file_name) # Current path of the file
+  destination_path <- file.path(destination_folder_fasta, file_name) # New path
+  
+  if (file.exists(file_path)) {
+    file.rename(file_path, destination_path) # Move the file
+  }
+}
